@@ -1,0 +1,4 @@
+data
+tmp
+*.o
+neural_net
