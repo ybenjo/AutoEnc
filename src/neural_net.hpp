@@ -1,4 +1,4 @@
-// neural network
+// Neural network
 // All notations : http://www.stanford.edu/class/cs294a/sparseAutoencoder.pdf
 
 #include <iostream>
@@ -29,8 +29,8 @@ public:
   }
 };
 
-// boost random wrapper
-// ref : http://d.hatena.ne.jp/n_shuyo/20100407/random
+// Wrapper of Boost::random
+// Ref : http://d.hatena.ne.jp/n_shuyo/20100407/random
 template<class D, class G = boost::mt19937>
 class Rand {
   G gen_;
@@ -74,42 +74,42 @@ public:
     _all_y.push_back(y);
   };
 
-  // train oneself(x = f(x))
+  // Train oneself(x = f(x))
   // for autoencoding
   double set_data(const std::vector<std::pair<int, double> >& x){
     set_data(x, x);
   };
 
-  // initialize _w
-  void initialize(){
+  // Initialize _w
+  void initialize_w(){
     std::vector<std::vector<std::pair<int, double> > >::iterator iter_1;
     std::vector<std::pair<int, double> >::iterator iter_2;
 
-    // search x's dimension
+    // Search x's dimension
     for(iter_1 = _all_x.begin(); iter_1 != _all_x.end(); ++iter_1){
       for(iter_2 = (*iter_1).begin(); iter_2 != (*iter_1).end(); ++iter_2){
         int feature_id = (*iter_2).first;
-	if(feature_id > _max_x) _max_x = feature_id;
+	if(feature_id > _size_x) _size_x = feature_id;
       }
     }
 
-    // search y's dimension
+    // Search y's dimension
     for(iter_1 = _all_y.begin(); iter_1 != _all_y.end(); ++iter_1){
       for(iter_2 = (*iter_1).begin(); iter_2 != (*iter_1).end(); ++iter_2){
         int answer_id = (*iter_2).first;
-	if(answer_id > _max_y) _max_y = answer_id;
+	if(answer_id > _size_y) _size_y = answer_id;
       }
     }
     
-    // initialize _w
+    // Initialize _w
     // w[layer][from][to]
 
-    // initialize N(0, 0.05)
+    // Initialize N(0, 0.05)
     Rand<boost::normal_distribution<> > rnorm(0, 0.05);
 
-    // weights of [x] => [hidden layer]
+    // Weights of [x] => [hidden layer]
     std::vector<std::vector<double> > first_layer_weight;
-    for(int from = 0; from <= _max_x; ++from){
+    for(int from = 0; from <= _size_x; ++from){
       std::vector<double> w;
       for(int to = 0; to < _size; ++to){
 	double val = rnorm();
@@ -118,11 +118,11 @@ public:
       first_layer_weight.push_back(w);
     }
 
-    // weights of [hidden layer] => [y]
+    // Weights of [hidden layer] => [y]
     std::vector<std::vector<double> > second_layer_weight;
     for(int from = 0; from < _size; ++from){
       std::vector<double> w;
-      for(int to = 0; to <= _max_y; ++to){
+      for(int to = 0; to <= _size_y; ++to){
 	double val = rnorm();
 	w.push_back(val);
       }
@@ -133,6 +133,38 @@ public:
     _w.push_back(second_layer_weight);
   };
 
+  // Set min/max of y and Rewrite _all_y
+  void initialize_y(){
+    std::vector<std::vector<std::pair<int, double> > >::iterator iter_1;
+    std::vector<std::pair<int, double> >::iterator iter_2;
+
+    // set min/max
+    for(iter_1 = _all_y.begin(); iter_1 != _all_y.end(); ++iter_1){
+      for(iter_2 = (*iter_1).begin(); iter_2 != (*iter_1).end(); ++iter_2){
+	int answer_id = (*iter_2).first;
+        double val = (*iter_2).second;
+	if(_min_y[answer_id] > val) _min_y[answer_id] = val;
+	if(_max_y[answer_id] < val) _max_y[answer_id] = val;
+      }
+    }
+
+    // Rewrite _all_y
+    for(int i = 0; i < _all_y.size(); ++i){
+      for(int j = 0; j < (_all_y.at(i)).size(); ++j){
+	std::pair<int, double> prev_elem = (_all_y.at(i)).at(j);
+	int answer_id = prev_elem.first;
+	double val = prev_elem.second;
+
+	double min = _min_y[answer_id];
+	double max = _max_y[answer_id];
+	double new_val = (val - min) / (max - min);
+
+	std::pair<int, double> new_elem = std::make_pair(answer_id, new_val);
+	(_all_y.at(i)).at(j) = new_elem;
+      }
+    }
+  };
+
   void forward(){
   };
 
@@ -140,7 +172,7 @@ public:
   };
 
 private:
-  // training data
+  // Training data
   // <
   //   <<feature_id, val>, ..., <feature_id, val>, >,
   //   ...,
@@ -148,7 +180,7 @@ private:
   // >
   std::vector<std::vector<std::pair<int, double> > > _all_x;
 
-  // answer data
+  // Answer data
   // <
   //   <<answer_id, val>, ..., <answer_id, val>, >,
   //   ...,
@@ -157,19 +189,22 @@ private:
   std::vector< std::vector<std::pair<int, double> > > _all_y;
 
   // x/y dimensions
-  int _max_x, _max_y;
-    
-  // activation values
+  int _size_x, _size_y;
+
+  // min/max of y(for train) of each answer_id
+  std::unordered_map<int, double> _min_y, _max_y;
+
+  // Activation values
   std::unordered_map<std::pair<int, int>, double, myhash, myeq> _a;
 
-  // weights
+  // Weights
   // _w[layer][from_id][to_id]
   std::vector<std::vector<std::vector<double> > > _w;
 
-  // bias factor
+  // Bias factor
   std::unordered_map<int, double> _b;
 
-  // parameters
+  // Parameters
   int _size;
   double _alpha, _beta, _lambda, _rho;
 };
