@@ -153,11 +153,12 @@ public:
       for(int j = 0; j < (_all_y.at(i)).size(); ++j){
 	std::pair<int, double> prev_elem = (_all_y.at(i)).at(j);
 	int answer_id = prev_elem.first;
-	double val = prev_elem.second;
+	double prev_val = prev_elem.second;
 
 	double min = _min_y[answer_id];
 	double max = _max_y[answer_id];
-	double new_val = (val - min) / (max - min);
+	// Scaling prev_val to [0, 1]
+	double new_val = (prev_val - min) / (max - min);
 
 	std::pair<int, double> new_elem = std::make_pair(answer_id, new_val);
 	(_all_y.at(i)).at(j) = new_elem;
