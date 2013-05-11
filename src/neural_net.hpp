@@ -261,6 +261,81 @@ public:
       _a.push_back(a);
     }
   };
+
+  // calc cost function J(W, b)
+  double cost_function(){
+    double sum_of_squares = 0.0, l2_norm = 0.0, sparse_error = 0.0;
+    // calc || hat{y} - y || ^ 2
+    for(int data_id = 0; data_id < _a.size(); ++data_id){
+      // a[<layer, node_id>]
+      std::unordered_map<std::pair<int, int>, double, myhash, myeq> a = _a.at(data_id);
+
+      std::unordered_map<int, int> checked;
+      double err = 0.0;
+      std::vector<std::pair<int, double> > y = _all_y.at(data_id);
+
+      std::vector<std::pair<int, double> >::iterator i;
+      for(i = y.begin(); i != y.end(); ++i){
+	std::pair<int, double> elem = (*i);
+	int answer_id = elem.first;
+	double answer_val = elem.second;
+	double predict_val = a[std::make_pair(1, answer_id)];
+
+	// update flag
+	checked[answer_id] = 1;
+
+	// update err
+	err += pow((answer_val - predict_val), 2);
+      }
+
+      // check other answer_id
+      for(int answer_id = 0; answer_id < _size_y; ++answer_id){
+	// calc dont check answer_id
+	if(checked.find(answer_id) == checked.end()){
+	  double predict_val = a[std::make_pair(1, answer_id)];
+	  err += pow(predict_val, 2);
+	}
+      }
+    }
+    sum_of_squares /= (_a.size() * 2);
+
+    // calc regularizer
+    std::vector<std::vector<std::vector<double> > >::iterator i_1;
+    for(i_1 = _w.begin(); i_1 != _w.end(); ++i_1){
+      std::vector<std::vector<double> >::iterator i_2;
+      std::vector<std::vector<double> > w_1 = *i_1;
+      for(i_2 = w_1.begin(); i_2 != w_1.end(); ++i_2){
+	std::vector<double>::iterator i_3;
+	std::vector<double> w_2 = *i_2;
+	for(i_3 = w_2.begin(); i_3 != w_2.end(); ++i_3){
+	  double w = *i_3;
+	  l2_norm += pow(w, 2);
+	}
+      }
+    }
+    l2_norm = l2_norm * _lambda / 2;
+
+    // calc sparse term
+    // calc KL divergence
+    std::unordered_map<int, double> rho;
+    int m = _a.size();
+    for(int data_id = 0; data_id < m; ++data_id){
+      std::unordered_map<std::pair<int, int>, double, myhash, myeq> a = _a.at(data_id);
+      for(int node_id = 0; node_id < _size; ++node_id){
+	rho[node_id] += a[std::make_pair(0, node_id)] / m;
+      }
+    }
+
+    for(int node_id = 0; node_id < _size; ++node_id){
+      double kl = _rho * log(_rho / rho[node_id]) + (1 - _rho) * log((1 - _rho) / (1 - rho[node_id]));
+      sparse_error += kl;
+    }
+
+    sparse_error *= _beta;
+
+    double error = sum_of_squares + l2_norm + sparse_error;
+    return error;
+  }
   
   void back_propagation(){
   };
