@@ -87,7 +87,8 @@ public:
 
     // Search x's dimension
     for(iter_1 = _all_x.begin(); iter_1 != _all_x.end(); ++iter_1){
-      for(iter_2 = (*iter_1).begin(); iter_2 != (*iter_1).end(); ++iter_2){
+      std::vector<std::pair<int, double> > vec = (*iter_1);
+      for(iter_2 = vec.begin(); iter_2 != vec.end(); ++iter_2){
         int feature_id = (*iter_2).first;
 	if(feature_id > _size_x) _size_x = feature_id;
       }
@@ -100,16 +101,20 @@ public:
 	if(answer_id > _size_y) _size_y = answer_id;
       }
     }
+
+    // inclement for loop's condition
+    ++_size_x;
+    ++_size_y;
     
     // Initialize _w
     // w[layer][from][to]
 
-    // Initialize N(0, 0.05)
-    Rand<boost::normal_distribution<> > rnorm(0, 0.05);
+    // Initialize N(0, 0.01 ^ 2)
+    Rand<boost::normal_distribution<> > rnorm(0, 0.0001);
 
     // Weights of [x] => [hidden layer]
     std::vector<std::vector<double> > first_layer_weight;
-    for(int from = 0; from <= _size_x; ++from){
+    for(int from = 0; from < _size_x; ++from){
       std::vector<double> w;
       for(int to = 0; to < _size; ++to){
 	double val = rnorm();
@@ -122,7 +127,7 @@ public:
     std::vector<std::vector<double> > second_layer_weight;
     for(int from = 0; from < _size; ++from){
       std::vector<double> w;
-      for(int to = 0; to <= _size_y; ++to){
+      for(int to = 0; to < _size_y; ++to){
 	double val = rnorm();
 	w.push_back(val);
       }
@@ -133,6 +138,27 @@ public:
     _w.push_back(second_layer_weight);
   };
 
+  // initialize _b
+  // _b[<layer, node_id>]
+  void initialize_b(){
+    // initialize N(0, 0.01 ^ 2)
+    Rand<boost::normal_distribution<> > rnorm(0, 0.0001);
+
+    // first layer
+    // [x] => [hidden layer]
+    for(int node_id_to = 0; node_id_to < _size; ++node_id_to){
+      double val = rnorm();
+      _b[std::make_pair(0, node_id_to)] = val;
+    }
+
+    // second layer
+    // [hidden layer] => [y]
+    for(int node_id_to = 0; node_id_to < _size_y; ++node_id_to){
+      double val = rnorm();
+      _b[std::make_pair(1, node_id_to)] = val;
+    }
+  };
+
   // Set min/max of y and Rewrite _all_y
   void initialize_y(){
     std::vector<std::vector<std::pair<int, double> > >::iterator iter_1;
@@ -140,7 +166,8 @@ public:
 
     // set min/max
     for(iter_1 = _all_y.begin(); iter_1 != _all_y.end(); ++iter_1){
-      for(iter_2 = (*iter_1).begin(); iter_2 != (*iter_1).end(); ++iter_2){
+      std::vector<std::pair<int, double> > vec = (*iter_1);
+      for(iter_2 = vec.begin(); iter_2 != vec.end(); ++iter_2){
 	int answer_id = (*iter_2).first;
         double val = (*iter_2).second;
 	if(_min_y[answer_id] > val) _min_y[answer_id] = val;
@@ -166,10 +193,76 @@ public:
     }
   };
 
-  void forward(){
+  void initialize(){
+    initialize_w();
+    initialize_b();
+    initialize_y();
   };
 
-  void backward(){
+  // forward
+  void forward(){
+    // clear _a
+    _a.clear();
+
+    for(int data_id = 0; data_id < _all_x.size(); ++data_id){
+
+      // a[<layer, node_id>]
+      std::unordered_map<std::pair<int, int>, double, myhash, myeq> a;
+
+      // z[<layer, node_id>]
+      // a[<layer, node_id>] = sigmoid(z[<layer, node_id>]);
+      std::unordered_map<std::pair<int, int>, double, myhash, myeq> z;
+
+      // First, add bias factor
+      // [b] => [hidden layer]
+      for(int node_id_to = 0; node_id_to < _size; ++ node_id_to){
+	z[std::make_pair(0, node_id_to)] = _b[std::make_pair(0, node_id_to)];
+      }
+      // [b] => [y]
+      for(int node_id_to = 0; node_id_to < _size_y; ++ node_id_to){
+	z[std::make_pair(1, node_id_to)] = _b[std::make_pair(1, node_id_to)];
+      }
+
+      // [x] => [hidden layer]
+      // z += w * x
+      std::vector<std::pair<int, double> >::iterator iter;
+      std::vector<std::pair<int, double> > vec = _all_x.at(data_id);
+      for(iter = vec.begin(); iter != vec.end(); ++iter){
+	std::pair<int, double> elem = (*iter);
+	int node_id_from = elem.first;
+	double val = elem.second;
+
+	for(int node_id_to = 0; node_id_to < _size; ++ node_id_to){
+	  z[std::make_pair(0, node_id_to)] += _w.at(0).at(node_id_from).at(node_id_to) * val;
+	}
+      }
+
+      // update a = sigmoid(z)
+      for(int node_id = 0; node_id < _size; ++ node_id){
+	std::pair<int, int> key = std::make_pair(0, node_id);
+	a[key] = sigmoid(z[key]);
+      }
+
+      // [hidden layer] => [y]
+      for(int node_id_from = 0; node_id_from < _size; ++ node_id_from){
+	for(int node_id_to = 0; node_id_to < _size_y; ++node_id_to){
+	  double val = a[std::make_pair(0, node_id_from)];
+	  z[std::make_pair(1, node_id_to)] += _w.at(1).at(node_id_from).at(node_id_to) * val;
+	}
+      }
+
+      // update a = sigmoid(z)
+      for(int node_id = 0; node_id < _size_y; ++ node_id){
+	std::pair<int, int> key = std::make_pair(1, node_id);
+	a[key] = sigmoid(z[key]);
+      }
+
+      // update _a
+      _a.push_back(a);
+    }
+  };
+  
+  void back_propagation(){
   };
 
 private:
@@ -196,14 +289,16 @@ private:
   std::unordered_map<int, double> _min_y, _max_y;
 
   // Activation values
-  std::unordered_map<std::pair<int, int>, double, myhash, myeq> _a;
+  // _a.at(data_id)[<layer, node_id>]
+  std::vector<std::unordered_map<std::pair<int, int>, double, myhash, myeq> > _a;
 
   // Weights
   // _w[layer][from_id][to_id]
   std::vector<std::vector<std::vector<double> > > _w;
 
   // Bias factor
-  std::unordered_map<int, double> _b;
+  // _b[<layer, node_id>]
+  std::unordered_map<std::pair<int, int>, double, myhash, myeq> _b;
 
   // Parameters
   int _size;
